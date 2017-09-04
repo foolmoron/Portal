@@ -7,6 +7,22 @@ function debounce(func, time, context) {
         timeoutId = setTimeout(function() { func.apply(context, args) }, time)
     }
 }
+function throttleBounce(func, interval, context) {
+    var firedThisInterval = false
+    var timeoutId = null
+    return function() { // use explicit function syntax to get wrapped arguments context
+        if (!firedThisInterval) {
+            // throttle
+            func.apply(context, arguments)
+            firedThisInterval = true
+            setTimeout(() => { firedThisInterval = false }, interval)
+        } else {
+            // debounce
+            clearTimeout(timeoutId)
+            timeoutId = setTimeout(() => { func.apply(context, arguments) }, interval)
+        }
+    }
+}
 
 // Misc global
 var gui
@@ -91,15 +107,25 @@ var tex = {
 }
 
 var video = document.getElementById('video');
-var videoTexture = new THREE.VideoTexture(video);
-videoTexture.minFilter = THREE.LinearFilter;
-videoTexture.magFilter = THREE.LinearFilter;
-videoTexture.format = THREE.RGBFormat;
+var videoCanvas = document.getElementById('video-canvas');
+var videoCtx = videoCanvas.getContext('2d');
 
 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia || navigator.oGetUserMedia;
 if (navigator.getUserMedia) {       
     navigator.getUserMedia({video: true}, (stream) => { video.src = URL.createObjectURL(stream); }, (err) => {});
 }
+
+var videoTexture = new THREE.Texture(videoCanvas);
+videoTexture.minFilter = THREE.LinearFilter;
+videoTexture.magFilter = THREE.LinearFilter;
+videoTexture.format = THREE.RGBFormat;
+
+function drawVideo() {
+    videoCtx.drawImage(video, 0, 0, videoCanvas.clientWidth, videoCanvas.clientHeight);
+    videoTexture.needsUpdate = true;
+    requestAnimationFrame(drawVideo);
+};
+drawVideo();
 
 // Fullscreen shader setup
 var scene = new THREE.Scene()
@@ -117,6 +143,7 @@ quadGeometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1
 quadGeometry.uvsNeedUpdate = true
 
 var uniforms = {
+    video: { type: 't', value: videoTexture },
     time: { type: 'f', value: 30 },
 
     subdivisions: { type: 'f', value: 8 },
