@@ -90,6 +90,17 @@ var loadTex = function(path) {
 var tex = {
 }
 
+var video = document.getElementById('video');
+var videoTexture = new THREE.VideoTexture(video);
+videoTexture.minFilter = THREE.LinearFilter;
+videoTexture.magFilter = THREE.LinearFilter;
+videoTexture.format = THREE.RGBFormat;
+
+navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia || navigator.oGetUserMedia;
+if (navigator.getUserMedia) {       
+    navigator.getUserMedia({video: true}, (stream) => { video.src = URL.createObjectURL(stream); }, (err) => {});
+}
+
 // Fullscreen shader setup
 var scene = new THREE.Scene()
 
