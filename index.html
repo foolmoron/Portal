@@ -103,7 +103,7 @@
         void main() {
             float angle = (atan(UV.y - 0.5, UV.x - 0.5) / TAU + 0.5) + time*0.2;
             float h = round(angle * 90.) / 90.;
-            vec3 hsvColor = hsv2rgb(vec3(0, 0, psin(h*32.)));
+            vec3 hsvColor = hsv2rgb(vec3(0, 0, psin(h*37.7)));
             vec4 finalColor = vec4(hsvColor.r, hsvColor.g, hsvColor.b, 1);
             finalColor = finalColor * texture2D(video, vec2(1,1) - UV) + texture2D(video, vec2(1,1) - UV);
             gl_FragColor = finalColor;
