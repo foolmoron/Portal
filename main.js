@@ -150,8 +150,16 @@ var sphere = new THREE.Mesh(sphereGeometry, new THREE.ShaderMaterial({
 }))
 scene.add(sphere)
 
+// Stats
+var stats = new Stats()
+stats.addPanel(new Stats.Panel( '', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)' ))
+stats.showPanel(3)
+document.body.appendChild(stats.domElement)
+
 // Render loop
 function render() {
+    stats.begin()
+
     var dt = clock.getDelta()
 
     // view proj
@@ -190,6 +198,9 @@ function render() {
 
     deviceOrientation.update()
     renderer.render(scene, camera)
+
+    stats.end()
+
     requestAnimationFrame(render)
 }
 
