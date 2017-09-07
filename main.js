@@ -40,7 +40,6 @@ var extra = {
     },
     zoomUI: function() {
         uiZoomed = !uiZoomed
-        gui.destroy()
         initGUI()
     },
     source: function() {
@@ -60,35 +59,20 @@ document.onfullscreenchange = document.onwebkitfullscreenchange = document.onmoz
     }
 }
 
-// Device rotation
-var latestDeviceRotation
-window.addEventListener('deviceorientation', function(e) {
-    var yaw = e.alpha / 180 * Math.PI
-    var pitch = e.beta / 180 * Math.PI
-    var roll = e.gamma / 180 * Math.PI
-    var x = -Math.cos(yaw) * Math.sin(pitch) * Math.sin(roll) - Math.sin(yaw) * Math.cos(roll)
-    var y = -Math.sin(yaw) * Math.sin(pitch) * Math.sin(roll) + Math.cos(yaw) * Math.cos(roll)
-    var z = Math.cos(pitch) * Math.sin(roll)
-    var angle = Math.atan2(y, x)
-    latestDeviceRotation = angle
-})
-
 // Renderer setup
 var renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') })
 renderer.setPixelRatio(window.devicePixelRatio)
-var camera = new THREE.OrthographicCamera(0, 0, 0, 0, 0, 1000)
+
+var camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 1, 1000)
 var clock = new THREE.Clock()
+var deviceOrientation = new THREE.DeviceOrientationControls(camera) // from https://threejs.org/examples/misc_controls_deviceorientation.html
 
 var w, h
 var handleResize = function() {
     w = window.innerWidth
     h = window.innerHeight
     renderer.setSize(w, h)
-    camera.left = -w/2
-    camera.right = w/2
-    camera.top = -h/2
-    camera.bottom = h/2
-    camera.zoom = Math.max(w, h)/700
+    camera.aspect = w/h
     camera.updateProjectionMatrix()
 }
 handleResize() // once on load
@@ -101,14 +85,16 @@ var loadTex = function(path) {
     texture.wrapS = THREE.RepeatWrapping
     texture.wrapT = THREE.RepeatWrapping
     texture.magFilter = THREE.NearestFilter
+    texture.minFilter = THREE.NearestFilter
     return texture
 }
 var tex = {
 }
 
-var video = document.getElementById('video');
-var videoCanvas = document.getElementById('video-canvas');
-var videoCtx = videoCanvas.getContext('2d');
+// Video input
+var video = document.getElementById('video')
+var videoCanvas = document.getElementById('video-canvas')
+var videoCtx = videoCanvas.getContext('2d')
 
 var videoWasSetup = false
 function setupVideo() {
@@ -119,82 +105,88 @@ function setupVideo() {
     videoWasSetup = true
 }
 
-var videoTexture = new THREE.Texture(videoCanvas);
-videoTexture.minFilter = THREE.LinearFilter;
-videoTexture.magFilter = THREE.LinearFilter;
-videoTexture.format = THREE.RGBFormat;
+var videoTexture = new THREE.Texture(videoCanvas)
+videoTexture.minFilter = THREE.LinearFilter
+videoTexture.magFilter = THREE.LinearFilter
+videoTexture.format = THREE.RGBFormat
 
 function drawVideo() {
-    videoCtx.drawImage(video, 0, 0, videoCanvas.clientWidth, videoCanvas.clientHeight);
-    videoTexture.needsUpdate = true;
-    requestAnimationFrame(drawVideo);
-};
-drawVideo();
+    videoCtx.drawImage(video, 0, 0, videoCanvas.clientWidth, videoCanvas.clientHeight)
+    videoTexture.needsUpdate = true
+    requestAnimationFrame(drawVideo)
+}
+drawVideo()
 
-// Fullscreen shader setup
+// Shader setup
 var scene = new THREE.Scene()
-
-var quadSize = 1000
-var quadGeometry = new THREE.Geometry()
-quadGeometry.vertices.push(new THREE.Vector3(0, 0, 0))
-quadGeometry.vertices.push(new THREE.Vector3(quadSize, 0, 0))
-quadGeometry.vertices.push(new THREE.Vector3(0, quadSize, 0))
-quadGeometry.vertices.push(new THREE.Vector3(quadSize, quadSize, 0))
-quadGeometry.faces.push(new THREE.Face3(0, 2, 3))
-quadGeometry.faces.push(new THREE.Face3(0, 3, 1))
-quadGeometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(1, 1)])
-quadGeometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 1), new THREE.Vector2(1, 0)])
-quadGeometry.uvsNeedUpdate = true
 
 var uniforms = {
     video: { type: 't', value: videoTexture },
+    viewProjInverse: { type: "m4", value: new THREE.Matrix4() },
     time: { type: 'f', value: 30 },
 
-    subdivisions: { type: 'f', value: 8 },
-    zoomFrequency: { type: 'f', value: 1 },
-    floorRate: { type: 'f', value: 5 },
+    saturation: { type: 'f', value: 0 },
+    multiply: { type: 'f', value: 1 },
 
-    cutoffFrequency: { type: 'f', value: 24 },
-    cutoffTimeScale: { type: 'f', value: 1 },
-    cutoffMultiplier: { type: 'f', value: 97 },
-
-    colorFadeAmplitude: { type: 'f', value: 0 },
-    colorFadeFrequency: { type: 'f', value: 2 },
-
-    hueShiftFrequency: { type: 'f', value: 1 },
-    saturationNoise: { type: 'f', value: 0.35 },
-    saturationFloor: { type: 'f', value: 0.65 },
-    valueNoise: { type: 'f', value: 0 },
-    valueFloor: { type: 'f', value: 1 },
+    cameraMultiply: { type: 'f', value: 0 },
+    cameraAdd: { type: 'f', value: 0 },
 }
 var prevUniforms = {} // for diffing
 
 var uniformsExtras = {
-    advanceTime: true,
+    timeScale: 1,
+    useCamera: false,
 }
 
-var quad = new THREE.Mesh(quadGeometry, new THREE.ShaderMaterial({
+// Scene setup
+var sphereGeometry = new THREE.SphereBufferGeometry(100, 50, 50)
+sphereGeometry.scale(-1, 1, 1)
+var sphere = new THREE.Mesh(sphereGeometry, new THREE.ShaderMaterial({
     vertexShader: document.getElementById('vert').textContent,
     fragmentShader: document.getElementById('frag').textContent,
     uniforms: uniforms,
     depthWrite: false,
     depthTest: false,
 }))
-quad.position.x = -quadSize/2
-quad.position.y = -quadSize/2
-scene.add(quad)
+scene.add(sphere)
+
+// Stats
+var stats = new Stats()
+stats.addPanel(new Stats.Panel( '', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)' ))
+stats.showPanel(3)
+document.body.appendChild(stats.domElement)
 
 // Render loop
 function render() {
+    stats.begin()
+
     var dt = clock.getDelta()
 
-    if (uniformsExtras.advanceTime) {
-        uniforms.time.value += dt
-    }
-    if (isFullscreen && latestDeviceRotation != null) {
-        camera.rotation.z = -latestDeviceRotation
+    // view proj
+    camera.matrixWorldInverse.getInverse(camera.matrixWorld)
+    uniforms.viewProjInverse.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    uniforms.viewProjInverse.value.getInverse(uniforms.viewProjInverse.value)
+
+    // uniforms
+    uniforms.time.value += uniformsExtras.timeScale * dt
+
+    if (uniformsExtras.useCamera) {
+        if (!videoWasSetup) {
+            setupVideo()
+        }
+        if (!uniformsExtras.prevUseCamera) {
+            uniforms.cameraMultiply.value = 1
+            uniforms.cameraAdd.value = 1
+            initGUI()
+        }
     } else {
+        uniforms.cameraMultiply.value = 0
+        uniforms.cameraAdd.value = 0
+        if (uniformsExtras.prevUseCamera) {
+            initGUI()
+        }
     }
+    uniformsExtras.prevUseCamera = uniformsExtras.useCamera;
 
     // check uniform diffs
     for (key in uniforms) {
@@ -204,21 +196,20 @@ function render() {
         prevUniforms[key] = uniforms[key].value
     }
 
+    deviceOrientation.update()
     renderer.render(scene, camera)
+
+    stats.end()
+
     requestAnimationFrame(render)
 }
 
 // GUI
 function initGUI() {
+    if (gui) {
+        gui.destroy()
+    }
     gui = new dat.GUI()
-
-    // gui.remember(uniformsExtras, uniforms.time, uniforms.period, uniforms.offset, uniforms.amplitude, uniforms.morphphase, uniforms.colorphase)
-    // setTimeout(() => { // force dat.gui local storage saving
-    //     var checkbox = document.getElementById('dg-local-storage')
-    //     if (!checkbox.getAttribute('checked')) {
-    //         checkbox.click()
-    //     }
-    // }, 0)
 
     gui.add(extra, 'source')
         .name('Source code by @foolmoron')
@@ -228,86 +219,43 @@ function initGUI() {
     
     var fGen = gui.addFolder('General')
     fGen.open()
-    fGen.add(uniformsExtras, 'advanceTime')
-        .name('Advance Time')
+    fGen.add(uniformsExtras, 'timeScale')
+        .name('Time Scale')
+        .min(0)
+        .max(3)
+        .step(0.1)
     fGen.add(uniforms.time, 'value')
         .name('Time')
         .min(0)
         .step(0.1)
-    fGen.add(uniforms.subdivisions, 'value')
-        .name('Subdivisions')
-        .min(1)
-        .max(16)
-        .step(2)
-    fGen.add(uniforms.zoomFrequency, 'value')
-        .name('Zoom Frequency')
-        .min(0)
-        .max(5)
-        .step(0.01)
-    fGen.add(uniforms.floorRate, 'value')
-        .name('Floor Rate')
-        .min(1)
-        .max(15)
-        .step(1)
 
-    var fCutoff = gui.addFolder('Cutoff')
-    fCutoff.open()
-    fCutoff.add(uniforms.cutoffFrequency, 'value')
-        .name('Frequency')
+    var fColor = gui.addFolder('Color')
+    fColor.open()
+    fColor.add(uniforms.saturation, 'value')
+        .name('Saturation')
         .min(0)
-        .max(50)
-        .step(0.1)
-    fCutoff.add(uniforms.cutoffTimeScale, 'value')
-        .name('Timescale')
-        .min(-4)
-        .max(4)
-        .step(0.1)
-    fCutoff.add(uniforms.cutoffMultiplier, 'value')
-        .name('Multiplier')
-        .min(0)
-        .max(200)
-        .step(1)
-
-    var fColorFade = gui.addFolder('Color Fade')
-    fColorFade.open()
-    fColorFade.add(uniforms.colorFadeAmplitude, 'value')
-        .name('Amplitude')
+        .max(1)
+        .step(0.05)
+    fColor.add(uniforms.multiply, 'value')
+        .name('Multiply')
         .min(0)
         .max(3)
-        .step(0.1)
-    fColorFade.add(uniforms.colorFadeFrequency, 'value')
-        .name('Frequency')
-        .min(0)
-        .max(10)
-        .step(0.1)
+        .step(0.05)
 
-    var fColorFade = gui.addFolder('Colors')
-    fColorFade.open()
-    fColorFade.add(uniforms.hueShiftFrequency, 'value')
-        .name('Hue Frequency')
+    var fCamera = gui.addFolder('Camera')
+    fCamera.open()
+    fCamera.add(uniformsExtras, 'useCamera')
+        .name('Use Camera')
+    fCamera.add(uniforms.cameraMultiply, 'value')
+        .name('Multiply')
         .min(0)
         .max(2)
-        .step(0.01)
-    fColorFade.add(uniforms.saturationNoise, 'value')
-        .name('Saturation Noise')
+        .step(0.05)
+    fCamera.add(uniforms.cameraAdd, 'value')
+        .name('Add')
         .min(0)
-        .max(1)
-        .step(0.01)
-    fColorFade.add(uniforms.saturationFloor, 'value')
-        .name('Saturation Floor')
-        .min(0)
-        .max(1)
-        .step(0.01)
-    fColorFade.add(uniforms.valueNoise, 'value')
-        .name('Value Noise')
-        .min(0)
-        .max(1)
-        .step(0.01)
-    fColorFade.add(uniforms.valueFloor, 'value')
-        .name('Value Floor')
-        .min(0)
-        .max(1)
-        .step(0.01)
+        .max(2)
+        .step(0.05)
 
     gui.add(extra, 'fullscreen')
         .name('GUI-less Fullscreen Mode! PROTIP: On a phone, lock the screen rotation and rotate it around')
@@ -316,7 +264,7 @@ function initGUI() {
     const scaleAmount = 2
     var mainControls = document.querySelector('.dg.main')
     if (uiZoomed) {
-        mainControls.style.transform = `scale(${scaleAmount}) translate3d(-${mainControls.offsetWidth / (scaleAmount*scaleAmount)}px, ${mainControls.offsetHeight / (scaleAmount*scaleAmount)}px, 0)`;
+        mainControls.style.transform = `scale(${scaleAmount}) translate3d(-${mainControls.offsetWidth / (scaleAmount*scaleAmount)}px, ${mainControls.offsetHeight / (scaleAmount*scaleAmount)}px, 0)`
     }
 }
 
