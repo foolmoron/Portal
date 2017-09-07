@@ -279,7 +279,7 @@ function initGUI() {
         .step(0.05)
 
     gui.add(extra, 'fullscreen')
-        .name('GUI-less Fullscreen Mode! PROTIP: On a phone, lock the screen rotation and rotate it around')
+        .name('GUI-less Fullscreen Mode! PROTIP: On a phone, lock the screen rotation and point it at colorful stuff')
 
     // zooming
     const scaleAmount = 2
