@@ -1,4 +1,4 @@
-# Portal
-Gyro and camera webGL toy
+# Zone
+Gyro and Camera webGL toy
 
-Try it online here: http://foolmoron.io/Portal
+Try it online here: https://foolmoron.io/Zone

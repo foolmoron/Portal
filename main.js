@@ -44,7 +44,7 @@ var extra = {
         initGUI()
     },
     source: function() {
-        window.open('https://github.com/foolmoron/portal', '_blank')
+        window.open('https://github.com/foolmoron/zone', '_blank')
     },
 }
 
