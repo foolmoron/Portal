@@ -62,6 +62,7 @@ document.onfullscreenchange = document.onwebkitfullscreenchange = document.onmoz
 // Renderer setup
 var renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') })
 renderer.setPixelRatio(window.devicePixelRatio)
+var composer = new THREE.EffectComposer(renderer)
 
 var camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 1, 1000)
 var clock = new THREE.Clock()
@@ -118,10 +119,9 @@ function drawVideo() {
 drawVideo()
 
 // Shader setup
-var scene = new THREE.Scene()
-
 var uniforms = {
     video: { type: 't', value: videoTexture },
+    tPost: { type: 't', value: null },
     viewProjInverse: { type: "m4", value: new THREE.Matrix4() },
     time: { type: 'f', value: 30 },
 
@@ -139,16 +139,29 @@ var uniformsExtras = {
 }
 
 // Scene setup
+var scene = new THREE.Scene()
 var sphereGeometry = new THREE.SphereBufferGeometry(100, 50, 50)
 sphereGeometry.scale(-1, 1, 1)
 var sphere = new THREE.Mesh(sphereGeometry, new THREE.ShaderMaterial({
     vertexShader: document.getElementById('vert').textContent,
-    fragmentShader: document.getElementById('frag').textContent,
+    fragmentShader: document.getElementById('lib').textContent + document.getElementById('frag').textContent,
     uniforms: uniforms,
     depthWrite: false,
     depthTest: false,
 }))
 scene.add(sphere)
+
+var postEffectMaterial = new THREE.ShaderMaterial({
+    vertexShader: document.getElementById('vertPost').textContent,
+    fragmentShader: document.getElementById('lib').textContent + document.getElementById('fragPost').textContent,
+    uniforms: uniforms,
+})
+
+// Render pass setup
+composer.addPass(new THREE.RenderPass(scene, camera))
+var postEffectPass = new THREE.ShaderPass(postEffectMaterial, 'tPost')
+postEffectPass.renderToScreen = true
+composer.addPass(postEffectPass)
 
 // Stats
 var stats = new Stats()
@@ -186,7 +199,7 @@ function render() {
             initGUI()
         }
     }
-    uniformsExtras.prevUseCamera = uniformsExtras.useCamera;
+    uniformsExtras.prevUseCamera = uniformsExtras.useCamera
 
     // check uniform diffs
     for (key in uniforms) {
@@ -197,7 +210,7 @@ function render() {
     }
 
     deviceOrientation.update()
-    renderer.render(scene, camera)
+    composer.render()
 
     stats.end()
 
