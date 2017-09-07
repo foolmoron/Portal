@@ -139,7 +139,7 @@ var uniformsExtras = {
     useCamera: false,
 
     rotation: 0,
-    rotationVelocity: TAU/8,
+    rotationVelocity: 0,
 }
 
 // Scene setup
@@ -218,7 +218,7 @@ function render() {
 // GUI
 function initGUI() {
     if (gui) {
-        gui.destroy()
+        try { gui.destroy() } catch(e) { }
     }
     gui = new dat.GUI()
 
