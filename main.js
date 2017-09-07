@@ -1,4 +1,5 @@
 // Util
+TAU = Math.PI * 2
 function debounce(func, time, context) {
     var timeoutId
     return function() {
@@ -62,7 +63,6 @@ document.onfullscreenchange = document.onwebkitfullscreenchange = document.onmoz
 // Renderer setup
 var renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') })
 renderer.setPixelRatio(window.devicePixelRatio)
-var composer = new THREE.EffectComposer(renderer)
 
 var camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 1, 1000)
 var clock = new THREE.Clock()
@@ -119,9 +119,10 @@ function drawVideo() {
 drawVideo()
 
 // Shader setup
+var scene = new THREE.Scene()
+
 var uniforms = {
     video: { type: 't', value: videoTexture },
-    tPost: { type: 't', value: null },
     viewProjInverse: { type: "m4", value: new THREE.Matrix4() },
     time: { type: 'f', value: 30 },
 
@@ -135,33 +136,23 @@ var prevUniforms = {} // for diffing
 
 var uniformsExtras = {
     timeScale: 1,
-    useCamera: false,
+    useCamera: true,
+
+    rotation: 0,
+    rotationVelocity: TAU/8,
 }
 
 // Scene setup
-var scene = new THREE.Scene()
 var sphereGeometry = new THREE.SphereBufferGeometry(100, 50, 50)
 sphereGeometry.scale(-1, 1, 1)
 var sphere = new THREE.Mesh(sphereGeometry, new THREE.ShaderMaterial({
     vertexShader: document.getElementById('vert').textContent,
-    fragmentShader: document.getElementById('lib').textContent + document.getElementById('frag').textContent,
+    fragmentShader: document.getElementById('frag').textContent,
     uniforms: uniforms,
     depthWrite: false,
     depthTest: false,
 }))
 scene.add(sphere)
-
-var postEffectMaterial = new THREE.ShaderMaterial({
-    vertexShader: document.getElementById('vertPost').textContent,
-    fragmentShader: document.getElementById('lib').textContent + document.getElementById('fragPost').textContent,
-    uniforms: uniforms,
-})
-
-// Render pass setup
-composer.addPass(new THREE.RenderPass(scene, camera))
-var postEffectPass = new THREE.ShaderPass(postEffectMaterial, 'tPost')
-postEffectPass.renderToScreen = true
-composer.addPass(postEffectPass)
 
 // Stats
 var stats = new Stats()
@@ -173,7 +164,7 @@ document.body.appendChild(stats.domElement)
 function render() {
     stats.begin()
 
-    var dt = clock.getDelta()
+    var dt = uniformsExtras.timeScale * clock.getDelta()
 
     // view proj
     camera.matrixWorldInverse.getInverse(camera.matrixWorld)
@@ -181,7 +172,7 @@ function render() {
     uniforms.viewProjInverse.value.getInverse(uniforms.viewProjInverse.value)
 
     // uniforms
-    uniforms.time.value += uniformsExtras.timeScale * dt
+    uniforms.time.value += dt
 
     if (uniformsExtras.useCamera) {
         if (!videoWasSetup) {
@@ -199,7 +190,10 @@ function render() {
             initGUI()
         }
     }
-    uniformsExtras.prevUseCamera = uniformsExtras.useCamera
+    uniformsExtras.prevUseCamera = uniformsExtras.useCamera;
+
+    uniformsExtras.rotation = (uniformsExtras.rotation + uniformsExtras.rotationVelocity * dt) % TAU
+    sphere.rotation.y = uniformsExtras.rotation
 
     // check uniform diffs
     for (key in uniforms) {
@@ -210,7 +204,7 @@ function render() {
     }
 
     deviceOrientation.update()
-    composer.render()
+    renderer.render(scene, camera)
 
     stats.end()
 
@@ -240,6 +234,16 @@ function initGUI() {
     fGen.add(uniforms.time, 'value')
         .name('Time')
         .min(0)
+        .step(0.1)
+    fGen.add(uniformsExtras, 'rotation')
+        .name('Rotation')
+        .min(0)
+        .max(TAU)
+        .step(0.1)
+    fGen.add(uniformsExtras, 'rotationVelocity')
+        .name('Rotation Velocity')
+        .min(0)
+        .max(TAU * 4)
         .step(0.1)
 
     var fColor = gui.addFolder('Color')

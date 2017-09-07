@@ -48,11 +48,20 @@
     <canvas id="canvas"></canvas>
     <canvas id="video-canvas" width=10 height=10></canvas>
     <video id="video" autoplay=true width=10 height=10></video>
-    <script id="lib" type="x-shader/x-fragment">
+    <script id="vert" type="x-shader/x-fragment">
+        varying vec2 UV;
+        varying vec4 v_position;
+
+        void main() {
+            UV = uv;
+            v_position  = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+        }
+    </script>
+    <script id="frag" type="x-shader/x-fragment">
         #define TAU 6.283185307179586476925286766559
 
         uniform sampler2D video;
-        uniform sampler2D tPost;
         uniform mat4 viewProjInverse;
 
         uniform float time;
@@ -88,18 +97,7 @@
         vec2 rotateAroundCenter(vec2 p, float rot) {
             return vec2(0.5 + (cos(rot) * (p.x - 0.5)) - (sin(rot) * (p.y - 0.5)), 0.5 + (sin(rot) * (p.x - 0.5)) + (cos(rot) * (p.y - 0.5)));
         }
-    </script>
-    <script id="vert" type="x-shader/x-fragment">
-        varying vec2 UV;
-        varying vec4 v_position;
 
-        void main() {
-            UV = uv;
-            v_position  = projectionMatrix * modelViewMatrix * vec4(position, 1.);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
-        }
-    </script>
-    <script id="frag" type="x-shader/x-fragment">
         void main() {
             vec4 t = viewProjInverse * v_position;
             vec3 view = normalize(t.xyz / t.w);
@@ -111,35 +109,15 @@
             vec4 finalColor = vec4(mix(gray, color, saturation), 1);
             finalColor *= multiply;
 
-            gl_FragColor = finalColor;
-        }
-    </script>
-    <script id="vertPost" type="x-shader/x-fragment">
-        varying vec2 UV;
-
-        void main() {
-            UV = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
-        }
-    </script>
-    <script id="fragPost" type="x-shader/x-fragment">
-        void main() {
             vec4 cameraColor = texture2D(video, vec2(1,1) - UV);
-            vec4 finalColor = texture2D(tPost, UV);
-            finalColor = finalColor * mix(vec4(1,1,1,1), cameraColor, cameraMultiply) + mix(vec4(0,0,0,0), cameraColor, cameraAdd);
-
+            float distanceToEdge = 1. - 2. * abs(UV.x - 0.5);
+            float cameraModifier = sqrt(distanceToEdge);
+            finalColor = finalColor * mix(vec4(1,1,1,1), cameraColor, cameraMultiply * cameraModifier) + mix(vec4(0,0,0,0), cameraColor, cameraAdd * cameraModifier);
             gl_FragColor = finalColor;
         }
     </script>
 </body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r79/three.min.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/shaders/CopyShader.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/shaders/HorizontalBlurShader.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/shaders/VerticalBlurShader.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/EffectComposer.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/RenderPass.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/MaskPass.js"></script>
-<script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r16/Stats.min.js"></script>
 <script src="DeviceOrientationControls.js"></script>
 <script src="dat.gui.min.js"></script>
