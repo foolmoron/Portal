@@ -136,7 +136,7 @@ var prevUniforms = {} // for diffing
 
 var uniformsExtras = {
     timeScale: 1,
-    useCamera: true,
+    useCamera: false,
 
     rotation: 0,
     rotationVelocity: TAU/8,
@@ -193,7 +193,11 @@ function render() {
     uniformsExtras.prevUseCamera = uniformsExtras.useCamera;
 
     uniformsExtras.rotation = (uniformsExtras.rotation + uniformsExtras.rotationVelocity * dt) % TAU
-    sphere.rotation.y = uniformsExtras.rotation
+    if (deviceOrientation.enabled) {
+        sphere.rotation.y = uniformsExtras.rotation
+    } else {
+        camera.rotation.y = uniformsExtras.rotation
+    }
 
     // check uniform diffs
     for (key in uniforms) {

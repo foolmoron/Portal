@@ -25,11 +25,15 @@ THREE.DeviceOrientationControls = function( object ) {
 
         scope.deviceOrientation = event;
 
+        scope.enabled = true;
+
     };
 
     var onScreenOrientationChangeEvent = function() {
 
         scope.screenOrientation = window.orientation || 0;
+
+        scope.enabled = window.orientation != null;
 
     };
 
@@ -65,8 +69,6 @@ THREE.DeviceOrientationControls = function( object ) {
 
         window.addEventListener( 'orientationchange', onScreenOrientationChangeEvent, false );
         window.addEventListener( 'deviceorientation', onDeviceOrientationChangeEvent, false );
-
-        scope.enabled = true;
 
     };
 
