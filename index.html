@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Focusing by @foolmoron</title>
+    <title>Portal by @foolmoron</title>
     <link rel='shortcut icon' href='favicon.ico' type='image/x-icon' />
     <style>
         body {
@@ -50,9 +50,11 @@
     <video id="video" autoplay=true width=10 height=10></video>
     <script id="vert" type="x-shader/x-fragment">
         varying vec2 UV;
+        varying vec4 v_position;
 
         void main() {
             UV = uv;
+            v_position  = projectionMatrix * modelViewMatrix * vec4(position, 1.);
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
         }
     </script>
@@ -60,26 +62,22 @@
         #define TAU 6.283185307179586476925286766559
 
         uniform sampler2D video;
+        uniform mat4 viewProjInverse;
 
         uniform float time;
-        uniform float subdivisions;
-        uniform float zoomFrequency;
-        uniform float floorRate;
-        uniform float cutoffFrequency;
-        uniform float cutoffTimeScale;
-        uniform float cutoffMultiplier;
-        uniform float colorFadeAmplitude;
-        uniform float colorFadeFrequency;
-        uniform float hueShiftFrequency;
-        uniform float saturationNoise;
-        uniform float saturationFloor;
-        uniform float valueNoise;
-        uniform float valueFloor;
+        uniform float saturation;
+        uniform float multiply;
+        uniform float cameraMultiply;
+        uniform float cameraAdd;
 
         varying vec2 UV;
+        varying vec4 v_position;
 
         float round(float x) {
             return floor(x + 0.5);
+        }
+        float round(float x, float step) {
+            return round(x * step) / step;
         }
 
         float psin(float x) {
@@ -101,16 +99,24 @@
         }
 
         void main() {
-            float angle = (atan(UV.y - 0.5, UV.x - 0.5) / TAU + 0.5) + time*0.2;
-            float h = round(angle * 90.) / 90.;
-            vec3 hsvColor = hsv2rgb(vec3(0, 0, psin(h*37.7)));
-            vec4 finalColor = vec4(hsvColor.r, hsvColor.g, hsvColor.b, 1);
-            finalColor = finalColor * texture2D(video, vec2(1,1) - UV) + texture2D(video, vec2(1,1) - UV);
+            vec4 t = viewProjInverse * v_position;
+            vec3 view = normalize(t.xyz / t.w);
+
+            vec3 color = vec3(round(psin(view.x * 21. + time * 1.9), 5.), round(psin(view.y * 17. + time * 1.55), 4.), round(psin(view.z * 176. + time * 2.3), 2.0));
+            float lum = dot(color, vec3(.2126, .7152, .0722));
+            vec3 gray = vec3(lum, lum, lum);
+
+            vec4 finalColor = vec4(mix(gray, color, saturation), 1);
+            finalColor *= multiply;
+
+            vec4 cameraColor = texture2D(video, vec2(1,1) - UV);
+            finalColor = finalColor * mix(vec4(1,1,1,1), cameraColor, cameraMultiply) + mix(vec4(0,0,0,0), cameraColor, cameraAdd);
             gl_FragColor = finalColor;
         }
     </script>
 </body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r79/three.min.js"></script>
+<script src="DeviceOrientationControls.js"></script>
 <script src="dat.gui.min.js"></script>
 <script src="main.js"></script>
 </html>
