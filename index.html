@@ -67,8 +67,13 @@
         uniform float time;
         uniform float saturation;
         uniform float multiply;
+        uniform float waveAmp;
+        uniform float waveSpeed;
+        uniform float waveFreq;
+        uniform float waveSmooth;
         uniform float cameraMultiply;
         uniform float cameraAdd;
+        uniform float cameraSaturation;
 
         varying vec2 UV;
         varying vec4 v_position;
@@ -91,7 +96,7 @@
         }
 
         float rand(vec2 co){
-            return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+            return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453);
         }
 
         vec2 rotateAroundCenter(vec2 p, float rot) {
@@ -102,14 +107,18 @@
             vec4 t = viewProjInverse * v_position;
             vec3 view = normalize(t.xyz / t.w);
 
-            vec3 color = vec3(round(psin(view.x * 21. + time * 1.9), 5.), round(psin(view.y * 17. + time * 1.55), 4.), round(psin(view.z * 176. + time * 2.3), 2.0));
+            vec3 color = vec3(
+                round(psin(view.x * 21. + time * 1.92 + round(waveAmp * sin(waveSpeed * time) * sin(view.z * waveFreq), waveSmooth)), 5.), 
+                round(psin(view.y * 17. + time * 1.55 + round(waveAmp * sin(waveSpeed * time) * sin(view.x * waveFreq), waveSmooth)), 4.), 
+                round(psin(view.z * 176. + time * 2.3 + round(waveAmp * sin(waveSpeed * time) * sin(view.y * waveFreq), waveSmooth)), 2.0)
+            );
             float lum = dot(color, vec3(.2126, .7152, .0722));
             vec3 gray = vec3(lum, lum, lum);
 
             vec4 finalColor = vec4(mix(gray, color, saturation), 1);
             finalColor *= multiply;
 
-            vec4 cameraColor = texture2D(video, vec2(1,1) - UV);
+            vec4 cameraColor = texture2D(video, vec2(1,1) - UV) * cameraSaturation;
             float distanceToEdge = 1. - 2. * abs(UV.x - 0.5);
             float cameraModifier = sqrt(distanceToEdge);
             finalColor = finalColor * mix(vec4(1,1,1,1), cameraColor, cameraMultiply * cameraModifier) + mix(vec4(0,0,0,0), cameraColor, cameraAdd * cameraModifier);

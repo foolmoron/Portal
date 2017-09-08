@@ -54,11 +54,35 @@ document.onfullscreenchange = document.onwebkitfullscreenchange = document.onmoz
     if (!prevFullscreen && isFullscreen) {
         // destroy dat.gui in full screen for performance
         gui.destroy()
+        // reset rotation offset to current rotation
+        rotationOffset = latestDeviceRotation
     } else if (prevFullscreen && !isFullscreen) {
         // rebuild dat.gui when exiting full screen
         initGUI()
     }
 }
+
+// Device rotation
+var prevAngleDelta
+var latestDeviceRotation
+var rotationOffset = 0
+window.addEventListener('deviceorientation', function(e) {
+    var yaw = e.alpha / 180 * Math.PI
+    var pitch = e.beta / 180 * Math.PI
+    var roll = e.gamma / 180 * Math.PI
+    var x = -Math.cos(yaw) * Math.sin(pitch) * Math.sin(roll) - Math.sin(yaw) * Math.cos(roll)
+    var y = -Math.sin(yaw) * Math.sin(pitch) * Math.sin(roll) + Math.cos(yaw) * Math.cos(roll)
+    var z = Math.cos(pitch) * Math.sin(roll)
+    var angle = Math.atan2(y, x)
+    var delta = angle - latestDeviceRotation
+    if (delta > TAU/2 && prevAngleDelta < 0) {
+        rotationOffset -= TAU
+    } else if (delta < -TAU/2 && prevAngleDelta > 0) {
+        rotationOffset += TAU
+    }
+    prevAngleDelta = angle - latestDeviceRotation
+    latestDeviceRotation = angle
+})
 
 // Renderer setup
 var renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') })
@@ -129,8 +153,14 @@ var uniforms = {
     saturation: { type: 'f', value: 0 },
     multiply: { type: 'f', value: 1 },
 
+    waveAmp: { type: 'f', value: 0 },
+    waveSpeed: { type: 'f', value: 2 },
+    waveFreq: { type: 'f', value: 40 },
+    waveSmooth: { type: 'f', value: 3 },
+
     cameraMultiply: { type: 'f', value: 0 },
     cameraAdd: { type: 'f', value: 0 },
+    cameraSaturation: { type: 'f', value: 0 },
 }
 var prevUniforms = {} // for diffing
 
@@ -138,8 +168,12 @@ var uniformsExtras = {
     timeScale: 1,
     useCamera: false,
 
-    rotation: 0,
-    rotationVelocity: 0,
+    rotationX: 0,
+    rotationXVelocity: 0,
+    rotationY: 0,
+    rotationYVelocity: 0,
+
+    shakiness: 10,
 }
 
 // Scene setup
@@ -181,22 +215,33 @@ function render() {
         if (!uniformsExtras.prevUseCamera) {
             uniforms.cameraMultiply.value = 1
             uniforms.cameraAdd.value = 1
+            uniforms.cameraSaturation.value = 1
             initGUI()
         }
     } else {
         uniforms.cameraMultiply.value = 0
         uniforms.cameraAdd.value = 0
+        uniforms.cameraSaturation.value = 0
         if (uniformsExtras.prevUseCamera) {
             initGUI()
         }
     }
-    uniformsExtras.prevUseCamera = uniformsExtras.useCamera;
+    uniformsExtras.prevUseCamera = uniformsExtras.useCamera
 
-    uniformsExtras.rotation = (uniformsExtras.rotation + uniformsExtras.rotationVelocity * dt) % TAU
+    uniformsExtras.rotationX = (uniformsExtras.rotationX + uniformsExtras.rotationXVelocity * dt) % TAU
+    uniformsExtras.rotationY = (uniformsExtras.rotationY + uniformsExtras.rotationYVelocity * dt) % TAU
     if (deviceOrientation.enabled) {
-        sphere.rotation.y = uniformsExtras.rotation
+        sphere.rotation.x = uniformsExtras.rotationX
+        sphere.rotation.y = uniformsExtras.rotationY
     } else {
-        camera.rotation.y = uniformsExtras.rotation
+        camera.rotation.x = uniformsExtras.rotationX
+        camera.rotation.y = uniformsExtras.rotationY
+    }
+
+    if (isFullscreen && latestDeviceRotation != null) {
+        var rot = latestDeviceRotation + rotationOffset
+        var val = 5 * Math.abs(rot) / (3 * TAU)
+        uniformsExtras.waveAmp = val
     }
 
     // check uniform diffs
@@ -239,15 +284,25 @@ function initGUI() {
         .name('Time')
         .min(0)
         .step(0.1)
-    fGen.add(uniformsExtras, 'rotation')
-        .name('Rotation')
+    fGen.add(uniformsExtras, 'rotationX')
+        .name('Rotation X')
         .min(0)
         .max(TAU)
         .step(0.1)
-    fGen.add(uniformsExtras, 'rotationVelocity')
-        .name('Rotation Velocity')
+    fGen.add(uniformsExtras, 'rotationXVelocity')
+        .name('Velocity X')
         .min(0)
-        .max(TAU * 4)
+        .max(TAU * 8)
+        .step(0.1)
+    fGen.add(uniformsExtras, 'rotationY')
+        .name('Rotation Y')
+        .min(0)
+        .max(TAU)
+        .step(0.1)
+    fGen.add(uniformsExtras, 'rotationYVelocity')
+        .name('Velocity Y')
+        .min(0)
+        .max(TAU * 8)
         .step(0.1)
 
     var fColor = gui.addFolder('Color')
@@ -263,6 +318,29 @@ function initGUI() {
         .max(3)
         .step(0.05)
 
+    var fWave = gui.addFolder('Wave')
+    fWave.open()
+    fWave.add(uniforms.waveAmp, 'value')
+        .name('Amplitude')
+        .min(0)
+        .max(5)
+        .step(0.1)
+    fWave.add(uniforms.waveSpeed, 'value')
+        .name('Speed')
+        .min(0)
+        .max(10)
+        .step(0.1)
+    fWave.add(uniforms.waveFreq, 'value')
+        .name('Frequency')
+        .min(0)
+        .max(300)
+        .step(1)
+    fWave.add(uniforms.waveSmooth, 'value')
+        .name('Smoothing')
+        .min(1)
+        .max(12)
+        .step(1)
+
     var fCamera = gui.addFolder('Camera')
     fCamera.open()
     fCamera.add(uniformsExtras, 'useCamera')
@@ -274,6 +352,11 @@ function initGUI() {
         .step(0.05)
     fCamera.add(uniforms.cameraAdd, 'value')
         .name('Add')
+        .min(0)
+        .max(2)
+        .step(0.05)
+    fCamera.add(uniforms.cameraSaturation, 'value')
+        .name('Saturation')
         .min(0)
         .max(2)
         .step(0.05)

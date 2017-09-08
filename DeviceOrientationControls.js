@@ -25,7 +25,7 @@ THREE.DeviceOrientationControls = function( object ) {
 
         scope.deviceOrientation = event;
 
-        scope.enabled = true;
+        scope.enabled = window.orientation != null;
 
     };
 
