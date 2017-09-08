@@ -239,8 +239,8 @@ function render() {
     }
 
     if (isFullscreen && latestDeviceRotation != null) {
-        var rot = latestDeviceRotation + rotationOffset
-        var val = 5 * Math.abs(rot) / TAU
+        var turns = (latestDeviceRotation + rotationOffset) / TAU
+        var val = 2 * Math.max(0, Math.abs(turns) - 0.5)
         uniforms.waveAmp.value = val
     }
 
