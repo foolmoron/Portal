@@ -54,8 +54,8 @@ document.onfullscreenchange = document.onwebkitfullscreenchange = document.onmoz
     if (!prevFullscreen && isFullscreen) {
         // destroy dat.gui in full screen for performance
         gui.destroy()
-        // reset rotation offset to current rotation
-        rotationOffset = latestDeviceRotation
+        // reset rotation offset to counteract current rotation
+        rotationOffset = -latestDeviceRotation
     } else if (prevFullscreen && !isFullscreen) {
         // rebuild dat.gui when exiting full screen
         initGUI()
@@ -240,8 +240,8 @@ function render() {
 
     if (isFullscreen && latestDeviceRotation != null) {
         var rot = latestDeviceRotation + rotationOffset
-        var val = 5 * Math.abs(rot) / (3 * TAU)
-        uniformsExtras.waveAmp = val
+        var val = 5 * Math.abs(rot) / TAU
+        uniformsExtras.waveAmp.value = val
     }
 
     // check uniform diffs
