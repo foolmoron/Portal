@@ -37,6 +37,8 @@ var extra = {
         var requestFullScreen = canvas.requestFullScreen || canvas.webkitRequestFullscreen || canvas.mozRequestFullScreen || canvas.msRequestFullscreen
         if (requestFullScreen) {
             requestFullScreen.call(canvas)
+        } else {
+            alert('Sorry, full screen web apps are not possible on iOS (for now..?)')
         }
     },
     zoomUI: function() {
