@@ -240,7 +240,7 @@ function render() {
         camera.rotation.y = uniformsExtras.rotationY
     }
 
-    if (isFullscreen && latestDeviceRotation != null) {
+    if (isFullscreen && window.orientation != null) {
         var turns = (latestDeviceRotation + rotationOffset) / TAU
         var val = 2 * Math.max(0, Math.abs(turns) - 0.5)
         uniforms.waveAmp.value = val
