@@ -241,7 +241,7 @@ function render() {
     if (isFullscreen && latestDeviceRotation != null) {
         var rot = latestDeviceRotation + rotationOffset
         var val = 5 * Math.abs(rot) / TAU
-        uniformsExtras.waveAmp.value = val
+        uniforms.waveAmp.value = val
     }
 
     // check uniform diffs
